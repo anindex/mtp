@@ -1,0 +1,3 @@
+[submodule "hydrax"]
+	path = hydrax
+	url = git@github.com:anindex/hydrax.git
