@@ -58,12 +58,12 @@ To achieve the best performance across tasks, here are recommended tuning guidel
 |--------|----------------------------|------------------------|
 | `M`    | Number of control waypoints (graph depth) | 2–3 (depending on horizon T)                  |
 | `N`    | Number of control candidates per waypoint (graph width) | 30–100               |
-| `β`    | Mixing rate (exploration vs. exploitation) | 0.1–0.6 (lower = more stable) |
+| `β`    | Mixing rate (exploration vs. exploitation) | 0.01–0.6 (lower = more stable less exploration) |
 | `E`    | Number of elites           | 5–100 (depends on task complexity) |
 | `σ_min` | Minimum noise std for CEM sampling | 0.05–0.2              |
 | `σ_max` | Maximum noise std for CEM sampling | 0.3–0.5              |
 | `interpolation`    | Interpolation Types |'linear', 'bspline', 'akima'             |
-| `α`    | Trajectory smoothing weight (optional) | 0.0–0.1              |
+| `α`    | CEM smoothing weight (optional) | 0.0–0.5              |
 
 
 ### Interpolation Strategy
