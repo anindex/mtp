@@ -1,5 +1,9 @@
 # Model Tensor Planning (MTP)
 
+[![arXiv](https://img.shields.io/badge/arXiv-2502.08378-brown)](https://arxiv.org/abs/2505.01059)
+[![](https://img.shields.io/badge/Website-%F0%9F%9A%80-yellow)](https://sites.google.com/view/tensor-sampling/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)]()
+
 This repository contains the official implementation of **Model Tensor Planning (MTP)**, a sampling-based model predictive control (MPC) framework that performs high-entropy control generation using structured tensor sampling.  See [project website](https://sites.google.com/view/tensor-sampling/).
 
 MTP is implemented entirely in **JAX** and supports real-time control in high-dimensional systems with GPU acceleration via JIT and MuJoCo XLA.
@@ -77,3 +81,26 @@ Run `scripts/plot_splines.py` to see spline tensors.
 ## Acknowledgments
 
 This codebase builds upon [HydraX](https://github.com/vincekurtz/hydrax), [MuJoCo XLA](https://github.com/deepmind/mujoco). Special thanks to [Vince Kurtz](https://github.com/vincekurtz) and other contributors.
+
+## Citation
+
+If you found this repository useful, please consider citing these references:
+
+```azure
+@misc{le2025mtp,
+      title={Model Tensor Planning}, 
+      author={An T. Le and Khai Nguyen and Minh Nhat Vu and João Carvalho and Jan Peters},
+      year={2025},
+      eprint={2505.01059},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2505.01059}, 
+}
+
+@misc{kurtz2024hydrax,
+  title={Hydrax: Sampling-based model predictive control on GPU with JAX and MuJoCo MJX},
+  author={Kurtz, Vince},
+  year={2024},
+  note={https://github.com/vincekurtz/hydrax}
+}
+```
