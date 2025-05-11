@@ -20,7 +20,7 @@ MTP is implemented entirely in **JAX** and supports real-time control in high-di
 - **Spline Grid Interpolation**: Smoothes sampled controls using B-spline and Akima splines for dynamically feasible execution.
 - **β-Mixing Strategy**: Blends global (exploratory) and local (exploitative) samples at each planning iteration.
 
-**NOTE:** `mtp` depends on [hydrax fork](https://github.com/anindex/hydrax) that separates original `hydrax` since [spline support PR](https://github.com/vincekurtz/hydrax/pull/40). This is on TODO list to match the latest commit.
+**NOTE:** `MTP-Bspline` and `MTP-Akima` depends on [hydrax fork](https://github.com/anindex/hydrax) that separates original [hydrax](https://github.com/vincekurtz/hydrax) since [spline support PR](https://github.com/vincekurtz/hydrax/pull/40). To match the newest commit, I implemented `MTP-Cubic` (untuned), a version that samples both global and local splines using `interpax`, matching the new API design of the original `hydrax`. To play around with `MTP-Cubic`, please checkout the branch `experimental` of both `mtp` and [hydrax fork](https://github.com/anindex/hydrax).
 
 ## Installation
 
