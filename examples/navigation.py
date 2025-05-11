@@ -21,9 +21,7 @@ Double click on the green target, then drag it around with [ctrl + right-click].
 """
 
 # Define the task (cost and dynamics)
-task = Particle(
-    planning_horizon = 20
-)
+task = Particle()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
@@ -58,62 +56,142 @@ if args.algorithm == "ps" or args.algorithm is None:
         task,
         num_samples=256,
         noise_level=0.1,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
         num_randomizations=8,
         seed=seed,
     )
 
 elif args.algorithm == "mppi":
     print("Running MPPI")
-    ctrl = MPPI(task, num_samples=256, noise_level=1.0, temperature=0.01, num_randomizations=8, seed=seed)
+    ctrl = MPPI(
+        task,
+        num_samples=256,
+        noise_level=0.1,
+        plan_horizon=0.5,
+        temperature=0.1,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 elif args.algorithm == "cem":
     print("Running CEM")
     ctrl = CEM(
         task,
         num_samples=256,
-        num_elites=20,
-        sigma_min=1.0,
-        sigma_start=1.0,
+        num_elites=50,
+        sigma_min=0.2,
+        sigma_start=0.5,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
         num_randomizations=8,
         seed=seed,
     )
 
 elif args.algorithm == "cmaes":
     print("Running CMA-ES")
-    ctrl = Evosax(task, Sep_CMA_ES, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        Sep_CMA_ES,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "samr":
     print("Running genetic algorithm with Self-Adaptation Mutation Rate (SAMR)")
-    ctrl = Evosax(task, SAMR_GA, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        SAMR_GA,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "nes":
     print("Running NoiseReuseES")
-    ctrl = Evosax(task, NoiseReuseES, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        NoiseReuseES,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "sga":
     print("Running Simple Genetic Algorithm (SGA)")
-    ctrl = Evosax(task, SimpleGA, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        SimpleGA,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "oes":
     print("Running OpenES")
-    ctrl = Evosax(task, Open_ES, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        Open_ES,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "de":
     print("Running Diffusion Evolution (DE)")
-    ctrl = Evosax(task, DiffusionEvolution, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        DiffusionEvolution,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "gld":
     print("Running Gradient-Less Descent (GLD)")
-    ctrl = Evosax(task, GradientlessDescent, num_samples=256, num_randomizations=8, seed=seed)
+    ctrl = Evosax(
+        task,
+        GradientlessDescent,
+        num_samples=256,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
+        num_randomizations=8,
+        seed=seed,
+    )
 
 elif args.algorithm == "mtp":
     print("Running MTP")
     ctrl = MTP(
         task,
         num_samples=256,
-        M=5,
-        N=30,
+        N=50,
         beta=1.0,
-        interpolation='akima',
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=5,
         num_randomizations=8,
         seed=seed,
     )

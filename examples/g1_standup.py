@@ -31,15 +31,20 @@ seed = 1111
 frequency = 100
 
 # Define the task (cost and dynamics)
-task = HumanoidStandup(
-    planning_horizon=3,
-)
+task = HumanoidStandup()
 
 # Set the controller based on command-line arguments
 if args.algorithm == "ps" or args.algorithm is None:
     print("Running predictive sampling")
     ctrl = PredictiveSampling(
-        task, num_samples=128, noise_level=0.3, num_randomizations=4, seed=seed
+        task, 
+        num_samples=128, 
+        noise_level=0.3,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=4, 
+        seed=seed
     )
 elif args.algorithm == "mppi":
     print("Running MPPI")
@@ -47,6 +52,9 @@ elif args.algorithm == "mppi":
         task,
         num_samples=128,
         noise_level=0.3,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         temperature=0.1,
         num_randomizations=4,
         seed=seed,
@@ -57,8 +65,12 @@ elif args.algorithm == "cem":
         task,
         num_samples=128,
         num_elites=100,
-        sigma_min=0.3,
-        sigma_start=0.5,
+        sigma_min=0.2,
+        sigma_start=0.3,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=4,
         seed=seed,
     )
 elif args.algorithm == "mtp":
@@ -66,16 +78,16 @@ elif args.algorithm == "mtp":
     ctrl = MTP(
         task,
         num_samples=128,
-        M=2,
         N=100,
-        temperature=0.1,
-        sigma_min=0.2,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=4,
         sigma_max=0.3,
+        sigma_min=0.2,
         num_elites=100,
         beta=0.05,
         alpha=0.,
-        interpolation='akima',
-        num_randomizations=4,
         seed=seed,
     )
 elif args.algorithm == "oes":
@@ -84,6 +96,9 @@ elif args.algorithm == "oes":
         task,
         Open_ES,
         num_samples=128,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         num_randomizations=4,
         seed=seed,
     )
@@ -93,6 +108,9 @@ elif args.algorithm == "de":
         task,
         DiffusionEvolution,
         num_samples=128,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         num_randomizations=4,
         seed=seed,
     )

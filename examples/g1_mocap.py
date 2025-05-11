@@ -29,9 +29,7 @@ subparsers.add_parser("mtp", help="MTP")
 args = parser.parse_args()
 
 # Define the task (cost and dynamics)
-task = HumanoidMocap(
-    planning_horizon=4,
-)
+task = HumanoidMocap()
 
 seed = 1111
 frequency = 100
@@ -40,7 +38,14 @@ frequency = 100
 if args.algorithm == "ps" or args.algorithm is None:
     print("Running predictive sampling")
     ctrl = PredictiveSampling(
-        task, num_samples=128, noise_level=0.1, num_randomizations=4, seed=seed
+        task,
+        num_samples=128,
+        noise_level=0.1,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=4,
+        seed=seed,
     )
 elif args.algorithm == "mppi":
     print("Running MPPI")
@@ -48,6 +53,9 @@ elif args.algorithm == "mppi":
         task,
         num_samples=128,
         noise_level=0.1,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         temperature=0.1,
         num_randomizations=4,
         seed=seed,
@@ -57,33 +65,40 @@ elif args.algorithm == "cem":
     ctrl = CEM(
         task,
         num_samples=128,
-        num_elites=100,
+        num_elites=20,
         sigma_min=0.1,
-        sigma_start=0.1,
+        sigma_start=0.2,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         num_randomizations=4,
         seed=seed,
     )
 elif args.algorithm == "mtp":
     ctrl = MTP(
-            task,
-            num_samples=128,
-            M=2,
-            N=100,
-            sigma_min=0.1,
-            sigma_max=0.2,
-            num_elites=100,
-            beta=0.02,
-            alpha=0.,
-            interpolation='akima',
-            num_randomizations=4,
-            seed=seed,
-        )
+        task,
+        num_samples=128,
+        N=100,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=4,
+        sigma_max=0.2,
+        sigma_min=0.1,
+        num_elites=100,
+        beta=0.02,
+        alpha=0.,
+        seed=seed,
+    )
 elif args.algorithm == "oes":
     print("Running OpenAIES")
     ctrl = Evosax(
         task,
         Open_ES,
         num_samples=128,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         num_randomizations=4,
         seed=seed,
     )
@@ -93,6 +108,9 @@ elif args.algorithm == "de":
         task,
         DiffusionEvolution,
         num_samples=128,
+        plan_horizon=0.6,
+        spline_type="cubic",
+        num_knots=4,
         num_randomizations=4,
         seed=seed,
     )

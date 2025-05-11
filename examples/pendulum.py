@@ -14,7 +14,7 @@ Run an interactive simulation of the pendulum swingup task.
 """
 
 # Define the task (cost and dynamics)
-task = Pendulum(planning_horizon=10)
+task = Pendulum()
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
     description="Run an interactive simulation of the walker task."
@@ -35,17 +35,39 @@ seed = 111
 # Set the controller based on command-line arguments
 if args.algorithm == "mtp" or args.algorithm is None:
     print("Running predictive sampling")
-    ctrl = PredictiveSampling(task, num_samples=32, noise_level=0.1, seed=seed)
+    ctrl = PredictiveSampling(
+        task,
+        num_samples=32,
+        noise_level=0.1,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=11,
+        seed=seed,
+    )
 elif args.algorithm == "mppi":
     print("Running MPPI")
-    ctrl = MPPI(task, num_samples=32, noise_level=0.1, temperature=0.1, seed=seed)
+    ctrl = MPPI(
+        task,
+        num_samples=32,
+        noise_level=0.1,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=11,
+        temperature=0.1,
+        seed=seed,
+    )
 elif args.algorithm == "cem":
     print("Running CEM")
     ctrl = CEM(
         task,
         num_samples=32,
-        num_elites=10,
         sigma_min=0.1,
+        sigma_start=0.2,
+        sigma_max=0.2,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=11,
+        num_elites=10,
         seed=seed,
     )
 elif args.algorithm == "mtp":
@@ -53,20 +75,43 @@ elif args.algorithm == "mtp":
     ctrl = MTP(
         task,
         num_samples=32,
-        M=3,
         N=50,
         sigma_min=0.1,
-        num_elites=10,
-        interpolation='bspline',
+        sigma_max=0.1,
+        num_elites=5,
+        beta=0.5,
+        alpha=0.1,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=11,
+        num_randomizations=4,
         seed=seed,
     )
 elif args.algorithm == "oes":
     print("Running OpenES")
-    ctrl = Evosax(task, Open_ES, num_samples=32, seed=seed)
+    ctrl = Evosax(
+        task,
+        Open_ES,
+        num_samples=32,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=11,
+        num_randomizations=4,
+        seed=seed,
+    )
 
 elif args.algorithm == "de":
     print("Running Diffusion Evolution (DE)")
-    ctrl = Evosax(task, DiffusionEvolution, num_samples=32, seed=seed)
+    ctrl = Evosax(
+        task,
+        DiffusionEvolution,
+        num_samples=32,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=11,
+        num_randomizations=4,
+        seed=seed,
+    )
 else:
     parser.error("Invalid algorithm")
 

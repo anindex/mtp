@@ -14,9 +14,7 @@ Run an interactive simulation of the push-T task with predictive sampling.
 """
 
 # Define the task (cost and dynamics)
-task = PushT(
-    planning_horizon=5,
-)
+task = PushT()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
@@ -40,13 +38,25 @@ if args.algorithm is None:
     args.algorithm = "mtp"  # Default to MTP
 if args.algorithm == "ps":
     print("Running predictive sampling")
-    ctrl = PredictiveSampling(task, num_samples=128, noise_level=0.3, num_randomizations=4, seed=seed)
+    ctrl = PredictiveSampling(
+        task,
+        num_samples=128,
+        noise_level=0.3,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=6,
+        num_randomizations=4,
+        seed=seed,
+    )
 elif args.algorithm == "mppi":
     print("Running MPPI")
     ctrl = MPPI(
         task,
         num_samples=128,
         noise_level=0.3,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=6,
         temperature=0.1,
         num_randomizations=4,
         seed=seed,
@@ -55,34 +65,58 @@ elif args.algorithm == "cem":
     print("Running CEM")
     ctrl = CEM(
         task,
-        num_samples=128,
-        num_elites=20,
-        sigma_min=0.3,
-        sigma_start=1.0,
+        num_samples=32,
+        sigma_min=0.2,
+        sigma_start=0.3,
+        sigma_max=0.3,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=6,
+        num_elites=10,
         seed=seed,
     )
 elif args.algorithm == "mtp":
     print("Running MTP")
     ctrl = MTP(
             task,
-            num_samples=128,
-            M=5,
-            N=30,
-            sigma_min=0.1,
+            num_samples=32,
+            N=50,
+            sigma_min=0.2,
+            sigma_max=0.3,
             num_elites=20,
             beta=0.5,
-            alpha=0.01,
-            interpolation='bspline',
+            alpha=0.1,
+            plan_horizon=0.5,
+            spline_type="cubic",
+            num_knots=6,
             num_randomizations=4,
             seed=seed,
         )
 elif args.algorithm == "oes":
     print("Running OpenES")
-    ctrl = Evosax(task, Open_ES, num_samples=128, seed=seed, num_randomizations=4)
+    ctrl = Evosax(
+        task,
+        Open_ES,
+        num_samples=32,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=6,
+        num_randomizations=4,
+        seed=seed,
+    )
 
 elif args.algorithm == "de":
     print("Running Diffusion Evolution (DE)")
-    ctrl = Evosax(task, DiffusionEvolution, num_samples=128, seed=seed, num_randomizations=4)
+    ctrl = Evosax(
+        task,
+        DiffusionEvolution,
+        num_samples=32,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=6,
+        num_randomizations=4,
+        seed=seed,
+    )
 # Define the model used for simulation
 mj_model, mj_data = task.reset(seed=seed)
 

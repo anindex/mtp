@@ -38,16 +38,26 @@ seed = 111
 if args.algorithm == "ps" or args.algorithm is None:
     print("Running predictive sampling")
     ctrl = PredictiveSampling(
-        task, num_samples=512, noise_level=0.2, num_randomizations=1, seed=seed
+        task, 
+        num_samples=512, 
+        noise_level=0.3, 
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=1, 
+        seed=seed
     )
 elif args.algorithm == "mppi":
     print("Running MPPI")
     ctrl = MPPI(
         task,
-        num_samples=512,
-        noise_level=0.2,
+        num_samples=512, 
+        noise_level=0.3, 
+        plan_horizon=0.5,
         temperature=0.1,
-        num_randomizations=1,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=1, 
         seed=seed,
     )
 elif args.algorithm == "cem":
@@ -58,22 +68,26 @@ elif args.algorithm == "cem":
         num_elites=50,
         sigma_min=0.2,
         sigma_start=0.5,
-        num_randomizations=1,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=4,
+        num_randomizations=1, 
         seed=seed,
     )
 elif args.algorithm == "mtp":
     ctrl = MTP(
             task,
             num_samples=512,
-            M=3,
             N=50,
             sigma_max=0.2,
             sigma_min=0.2,
             num_elites=5,
             beta=0.01,
             alpha=0.005,
-            interpolation='bspline',
-            num_randomizations=1,
+            plan_horizon=0.5,
+            spline_type="cubic",
+            num_knots=4,
+            num_randomizations=1, 
             seed=seed,
         )
 elif args.algorithm == "oes":
@@ -81,6 +95,9 @@ elif args.algorithm == "oes":
     ctrl = Evosax(
         task,
         Open_ES,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=4,
         num_samples=512,
         num_randomizations=1,
         seed=seed,
@@ -90,6 +107,9 @@ elif args.algorithm == "de":
     ctrl = Evosax(
         task,
         DiffusionEvolution,
+        plan_horizon=0.5,
+        spline_type="cubic",
+        num_knots=4,
         num_samples=512,
         num_randomizations=1,
         seed=seed,
@@ -104,7 +124,7 @@ run_interactive(
     mj_data,
     frequency=50,
     fixed_camera_id=0,
-    show_traces=True,
+    show_traces=False,
     show_ui=False,
     record_video=False,
     max_traces=5,

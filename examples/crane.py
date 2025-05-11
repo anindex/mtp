@@ -28,16 +28,20 @@ args = parser.parse_args()
 
 
 # Define the task (cost and dynamics)
-task = Crane(
-    planning_horizon=2,
-)
-
+task = Crane()
 seed = 111
 
 if args.algorithm == "ps" or args.algorithm is None:
     print("Running predictive sampling")
     ctrl = PredictiveSampling(
-        task, num_samples=16, noise_level=0.05, num_randomizations=32, seed=seed
+        task, 
+        num_samples=16, 
+        noise_level=0.05,
+        plan_horizon=0.8,
+        spline_type="cubic",
+        num_knots=3, 
+        num_randomizations=32, 
+        seed=seed
     )
 elif args.algorithm == "mppi":
     print("Running MPPI")
@@ -45,6 +49,9 @@ elif args.algorithm == "mppi":
         task,
         num_samples=16,
         noise_level=0.05,
+        plan_horizon=0.8,
+        spline_type="cubic",
+        num_knots=3,
         temperature=0.1,
         num_randomizations=32,
         seed=seed,
@@ -57,6 +64,9 @@ elif args.algorithm == "cem":
         num_elites=8,
         sigma_min=0.05,
         sigma_start=0.3,
+        plan_horizon=0.8,
+        spline_type="cubic",
+        num_knots=3,
         num_randomizations=32,
         seed=seed,
     )
@@ -64,14 +74,15 @@ elif args.algorithm == "mtp":
     ctrl = MTP(
             task,
             num_samples=16,
-            M=2,
             N=30,
             sigma_start=0.05,
             sigma_min=0.05,
             num_elites=8,
             beta=0.5,
             alpha=0.,
-            interpolation='bspline',
+            plan_horizon=0.8,
+            spline_type="cubic",
+            num_knots=3,
             num_randomizations=32,
             seed=seed,
         )
@@ -80,6 +91,9 @@ elif args.algorithm == "oes":
     ctrl = Evosax(
         task,
         Open_ES,
+        plan_horizon=0.8,
+        spline_type="cubic",
+        num_knots=3,
         num_samples=16,
         num_randomizations=32,
         seed=seed,
@@ -89,6 +103,9 @@ elif args.algorithm == "de":
     ctrl = Evosax(
         task,
         DiffusionEvolution,
+        plan_horizon=0.8,
+        spline_type="cubic",
+        num_knots=3,
         num_samples=16,
         num_randomizations=32,
         seed=seed,
@@ -103,8 +120,7 @@ run_interactive(
     mj_model,
     mj_data,
     frequency=30,
-    show_traces=True,
-    
+    show_traces=False,
     fixed_camera_id=0,
     show_ui=False,
     record_video=False,
