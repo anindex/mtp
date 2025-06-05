@@ -24,9 +24,23 @@ MTP is implemented entirely in **JAX** and supports real-time control in high-di
 
 ## Installation
 
+Clone this repository and its submodules:
 ```bash
-# Create environment (Python ≥ 3.12 recommended)
+git clone --recurse-submodules git@github.com:anindex/mtp.git
+cd mtp
+```
+
+Install the environment and libraries:
+```bash
+# Conda environment setup
+conda update -n base conda -y
 conda create -n mtp python=3.12
+conda activate mtp
+conda env config vars set CUDA_HOME=""
+conda activate mtp
+conda install -c nvidia/label/cuda-12.9.0 cuda-toolkit=12.9.0 -y
+conda install -c conda-forge cudnn=9.10.1.4 -y
+conda install pip -y
 conda activate mtp
 
 # Install hydrax dependency
