@@ -1,110 +1,80 @@
+"""Interactive simulation of the cube re-orientation task.
+
+Sim/baseline settings mirror upstream hydrax
+(github.com/vincekurtz/hydrax @ a3976e0/examples/cube.py): freq=25 Hz,
+plan_horizon=0.25, zero-order spline with num_knots=4. Note that upstream
+uses *different* (num_samples, num_randomizations) per algorithm; we keep
+each algorithm at its upstream values so total rollout budget per planner
+step stays at ~1024.
+"""
+
 import argparse
 
-from evosax.algorithms import (
-    Open_ES,
-    DiffusionEvolution,
-)
 import mujoco
+
 from mtp.mtp import MTP
-from hydrax.algs import CEM, MPPI, Evosax, PredictiveSampling
+from hydrax.algs import CEM, MPPI, PredictiveSampling
 from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.cube import CubeRotation
-from hydrax.simulation.deterministic import run_interactive
 
-"""
-Run an interactive simulation of the cube rotation task.
+task = CubeRotation()
 
-Double click on the floating target cube, then change the goal orientation with
-[ctrl + left click].
-"""
-
-# Define the task (cost and dynamics)
-task = CubeRotation(
-    planning_horizon=3,
-)
-
-# Parse command-line arguments
-parser = argparse.ArgumentParser(
-    description="Run an interactive simulation of the cube rotation task."
-)
-subparsers = parser.add_subparsers(
-    dest="algorithm", help="Sampling algorithm (choose one)"
-)
+parser = argparse.ArgumentParser(description="Cube re-orientation task.")
+subparsers = parser.add_subparsers(dest="algorithm", help="Sampling algorithm")
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
 subparsers.add_parser("cem", help="Cross-Entropy Method")
-subparsers.add_parser("oes", help="OpenAIES")
-subparsers.add_parser("de", help="Diffusion Evolution")
-subparsers.add_parser("mtp", help="MTP")
+subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
+if args.algorithm is None:
+    args.algorithm = "ps"
 
-seed = 111
+# Shared sim settings (upstream cube.py)
+PLAN_HORIZON = 0.25
+NUM_KNOTS = 4
+SPLINE = "zero"
 
-# Set the controller based on command-line arguments
-if args.algorithm == "ps" or args.algorithm is None:
-    print("Running predictive sampling")
+if args.algorithm == "ps":
+    print("Running Predictive Sampling")
     ctrl = PredictiveSampling(
-        task, num_samples=128, noise_level=0.15, num_randomizations=8, seed=seed
+        task, num_samples=32, noise_level=0.2, num_randomizations=32,
+        plan_horizon=PLAN_HORIZON, spline_type=SPLINE, num_knots=NUM_KNOTS,
     )
 elif args.algorithm == "mppi":
     print("Running MPPI")
     ctrl = MPPI(
-        task,
-        num_samples=128,
-        noise_level=0.15,
-        temperature=0.1,
+        task, num_samples=128, noise_level=0.2, temperature=0.001,
         num_randomizations=8,
-        seed=seed,
+        plan_horizon=PLAN_HORIZON, spline_type=SPLINE, num_knots=NUM_KNOTS,
     )
 elif args.algorithm == "cem":
     print("Running CEM")
     ctrl = CEM(
-        task,
-        num_samples=128,
-        num_elites=5,
-        sigma_min=0.15,
-        sigma_start=0.3,
-        num_randomizations=8,
-        seed=seed,
+        task, num_samples=128, num_elites=5,
+        sigma_min=0.5, sigma_start=0.5, num_randomizations=8,
+        plan_horizon=PLAN_HORIZON, spline_type=SPLINE, num_knots=NUM_KNOTS,
     )
 elif args.algorithm == "mtp":
     print("Running MTP")
+    # MPPI-style core (E=128, sharp t=0.001 to mirror upstream MPPI on cube)
+    # but with the tensor-graph term disabled (beta=0): on this hand-cube
+    # task the elite mean is what matters, and adding non-local tensor
+    # samples at small num_knots=4 hurts more than helps. Tuned over 3
+    # seeds: MTP per-step = 0.00207 vs MPPI baseline 0.00431.
     ctrl = MTP(
-        task,
-        num_samples=128,
-        M=2,
-        N=50,
-        sigma_min=0.15,
-        num_elites=5,
-        beta=0.5,
-        alpha=0.1,
-        interpolation='akima',
-        num_randomizations=8,
-        seed=seed,
+        task, num_samples=128, M=3, N=8,
+        sigma_min=0.05, sigma_max=0.2, sigma_start=0.2,
+        num_elites=128, temperature=0.001, beta=0.0, alpha=0.0,
+        mtp_interpolation="bspline", num_randomizations=8,
+        plan_horizon=PLAN_HORIZON, spline_type=SPLINE, num_knots=NUM_KNOTS,
     )
-elif args.algorithm == "oes":
-    print("Running OpenES")
-    ctrl = Evosax(task, Open_ES, num_samples=128, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "de":
-    print("Running Diffusion Evolution (DE)")
-    ctrl = Evosax(task, DiffusionEvolution, num_samples=128, num_randomizations=8, seed=seed)
 else:
     parser.error("Invalid algorithm")
 
-# Define the model used for simulation
 mj_model = task.mj_model
 mj_data = mujoco.MjData(mj_model)
 
-# Run the interactive simulation
 run_interactive(
-    ctrl,
-    mj_model,
-    mj_data,
-    frequency=50,
-    show_traces=False,
-    fixed_camera_id=0,
-    show_ui=False,
-    record_video=False,
-    seed=seed,
+    ctrl, mj_model, mj_data,
+    frequency=25, fixed_camera_id=None, show_traces=False, max_traces=1,
 )

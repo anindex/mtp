@@ -7,32 +7,46 @@ dynamic = ["version"]
 
 name = "mtp"
 dependencies = [
+  # Pin hydrax to a known-good commit. The upstream API recently changed
+  # (Task no longer accepts `planning_horizon`, dropped the `reset()` helper,
+  # added the `impl=` backend selector, etc.). Pinning a SHA keeps `mtp`
+  # reproducible until we explicitly bump it.
+  "hydrax @ git+https://github.com/vincekurtz/hydrax.git@a3976e0902d2b063bcfbb439f68391c5e0ca61fb",
+  "jax>=0.6.0",
+  "mujoco>=3.2",
+  "mujoco-mjx>=3.2",
+  "flax>=0.10",
   "matplotlib",
   "tqdm",
-  "jax[cuda12]>=0.6.0,<=0.6.1",
-  "jaxlib[cuda12]>=0.6.0,<=0.6.1",
-  "nvidia-cublas-cu12==12.9.0.13",
-  "joblib",
-  "chrono",
 ]
 requires-python = ">= 3.12"
 
 authors = [
   {name = "An T. Le", email = "an.thai.le97@gmail.com"},
 ]
-description = "Implementation of MTP."
+description = "Model Tensor Planning: High-entropy sampling-based MPC via structured tensor sampling and spline interpolation."
 readme = "README.md"
 license = {file = "LICENSE"}
-keywords = ["MPC", "Tensor", "MuJoCo", "JAX", "Vectorization"]
+keywords = ["MPC", "Tensor", "MuJoCo", "JAX", "Motion Planning", "Sampling", "Spline"]
 
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+[project.urls]
+Homepage = "https://sites.google.com/view/tensor-sampling/"
+Repository = "https://github.com/anindex/mtp"
+Paper = "https://arxiv.org/abs/2505.01059"
+
 [tool.setuptools.packages.find]
-include = ["hydrax", "mtp"]  # package names should match these glob patterns (["*"] by default)
-exclude = []  # exclude packages matching these glob patterns (empty by default)
+include = ["mtp", "mtp.*"]
+exclude = []
+
+[tool.setuptools.package-data]
+"mtp" = ["models/**/*.xml"]

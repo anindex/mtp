@@ -1,29 +1,25 @@
+"""Interactive simulation of the particle tracking task with MTP.
+
+Uses the locally-vendored ``NavigationParticle`` task whose MJCF includes
+the U-shaped inner walls. The straight-line path from start to goal goes
+through a wall, which creates a local minimum that local samplers (PS,
+MPPI, CEM) struggle to escape - MTP's tensor-graph sampling explores
+both branches around the U and consistently finds the goal.
+
+Double-click the green target, then drag it with [Ctrl + right-click].
+Press [Tab] inside the viewer to hide the left/right side panels for a
+cleaner, full-window view.
+"""
+
 import argparse
 
-from evosax.algorithms import (
-    Sep_CMA_ES,
-    SAMR_GA,
-    NoiseReuseES,
-    DiffusionEvolution,
-    Open_ES,
-    SimpleGA,
-    GradientlessDescent,
-)
 from mtp.mtp import MTP
-from hydrax.algs import CEM, MPPI, Evosax, PredictiveSampling
+from mtp.tasks.navigation import NavigationParticle
+from hydrax.algs import CEM, MPPI, PredictiveSampling
 from hydrax.simulation.deterministic import run_interactive
-from hydrax.tasks.particle import Particle
 
-"""
-Run an interactive simulation of the particle tracking task.
-
-Double click on the green target, then drag it around with [ctrl + right-click].
-"""
-
-# Define the task (cost and dynamics)
-task = Particle(
-    planning_horizon = 20
-)
+# Define the task
+task = NavigationParticle()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
@@ -35,104 +31,78 @@ subparsers = parser.add_subparsers(
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
 subparsers.add_parser("cem", help="Cross-Entropy Method")
-subparsers.add_parser("cmaes", help="CMA-ES")
-subparsers.add_parser("nes", help="NoiseReuseES")
-subparsers.add_parser("oes", help="OpenES")
-subparsers.add_parser(
-    "samr", help="Genetic Algorithm with Self-Adaptation Mutation Rate (SAMR)"
-)
-subparsers.add_parser("de", help="Differential Evolution")
-subparsers.add_parser("gld", help="Gradient-Less Descent")
-subparsers.add_parser("rs", help="Uniform Random Search")
-subparsers.add_parser("sga", help="Simple Genetic Algorithm")
-subparsers.add_parser("mtp", help="MTP")
-subparsers.add_parser("mstp", help="MSTP")
+subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
 
-seed = 111
+# Set the controller based on command-line arguments.
+#
+# Note on rendering smoothness: ``hydrax.simulation.deterministic.run_interactive``
+# is synchronous - the viewer waits for each replan, so realtime rate ≈
+# ``min(frequency, 1 / plan_time)``. We keep the per-step compute budget
+# modest (128 samples x 4 randomizations = 512 rollouts/replan @ 25 Hz)
+# and cap rollout traces to keep the Python ``mjv_connector`` overhead low.
+common_kwargs = dict(
+    plan_horizon=1.0,
+    spline_type="zero",
+    num_knots=20,
+    num_randomizations=4,
+)
 
-# Set the controller based on command-line arguments
 if args.algorithm == "ps" or args.algorithm is None:
-    print("Running predictive sampling")
+    print("Running Predictive Sampling")
     ctrl = PredictiveSampling(
         task,
-        num_samples=256,
+        num_samples=128,
         noise_level=0.1,
-        num_randomizations=8,
-        seed=seed,
+        **common_kwargs,
     )
-
 elif args.algorithm == "mppi":
     print("Running MPPI")
-    ctrl = MPPI(task, num_samples=256, noise_level=1.0, temperature=0.01, num_randomizations=8, seed=seed)
+    ctrl = MPPI(
+        task,
+        num_samples=128,
+        noise_level=1.0,
+        temperature=0.01,
+        **common_kwargs,
+    )
 elif args.algorithm == "cem":
     print("Running CEM")
     ctrl = CEM(
         task,
-        num_samples=256,
+        num_samples=128,
         num_elites=20,
         sigma_min=1.0,
         sigma_start=1.0,
-        num_randomizations=8,
-        seed=seed,
+        **common_kwargs,
     )
-
-elif args.algorithm == "cmaes":
-    print("Running CMA-ES")
-    ctrl = Evosax(task, Sep_CMA_ES, num_samples=256, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "samr":
-    print("Running genetic algorithm with Self-Adaptation Mutation Rate (SAMR)")
-    ctrl = Evosax(task, SAMR_GA, num_samples=256, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "nes":
-    print("Running NoiseReuseES")
-    ctrl = Evosax(task, NoiseReuseES, num_samples=256, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "sga":
-    print("Running Simple Genetic Algorithm (SGA)")
-    ctrl = Evosax(task, SimpleGA, num_samples=256, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "oes":
-    print("Running OpenES")
-    ctrl = Evosax(task, Open_ES, num_samples=256, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "de":
-    print("Running Diffusion Evolution (DE)")
-    ctrl = Evosax(task, DiffusionEvolution, num_samples=256, num_randomizations=8, seed=seed)
-
-elif args.algorithm == "gld":
-    print("Running Gradient-Less Descent (GLD)")
-    ctrl = Evosax(task, GradientlessDescent, num_samples=256, num_randomizations=8, seed=seed)
-
 elif args.algorithm == "mtp":
     print("Running MTP")
     ctrl = MTP(
         task,
-        num_samples=256,
-        M=5,
-        N=30,
+        num_samples=128,
+        M=3,
+        N=20,
         beta=1.0,
-        interpolation='akima',
-        num_randomizations=8,
-        seed=seed,
+        mtp_interpolation="akima",
+        **common_kwargs,
     )
 else:
     parser.error("Invalid algorithm")
 
 # Define the model used for simulation
-mj_model, mj_data = task.reset(seed=seed)
+mj_model = task.mj_model
+mj_data = task.make_initial_data(seed=0)
 
-# Run the interactive simulation
+# Run the interactive simulation. Lower the planner frequency to 25 Hz to
+# leave a comfortable 40 ms compute budget per replan, and cap the number
+# of rendered trajectory traces (each trace is a polyline of ``ctrl_steps``
+# line segments redrawn every replan from Python).
 run_interactive(
     ctrl,
     mj_model,
     mj_data,
-    frequency=50,
+    frequency=25,
     show_traces=True,
-    max_traces=5,
-    # fixed_camera_id=0,
-    record_video=False,
-    show_ui=False,
-    seed=seed,
+    max_traces=3,
+    trace_width=2.0,
 )
