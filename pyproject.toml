@@ -7,15 +7,16 @@ dynamic = ["version"]
 
 name = "mtp"
 dependencies = [
-  # Pin hydrax to a known-good commit. The upstream API recently changed
-  # (Task no longer accepts `planning_horizon`, dropped the `reset()` helper,
-  # added the `impl=` backend selector, etc.). Pinning a SHA keeps `mtp`
-  # reproducible until we explicitly bump it.
-  "hydrax @ git+https://github.com/vincekurtz/hydrax.git@a3976e0902d2b063bcfbb439f68391c5e0ca61fb",
-  "jax>=0.6.0",
-  "mujoco>=3.2",
-  "mujoco-mjx>=3.2",
-  "flax>=0.10",
+  # Pin hydrax to the commit that includes the merged MTP controller
+  # (PR #75), BugTrap navigation task (PR #76), Akima/B-spline spline
+  # primitives (PR #74), the spline extrapolation bugfix (PR #70),
+  # MPPI-CMA (PR #71), and MjWarp support (PR #72).
+  "hydrax @ git+https://github.com/vincekurtz/hydrax.git@33ec819479c25d623a4ad490574c00e624848d2c",
+  "jax>=0.8.0",
+  "mujoco>=3.8.0",
+  "mujoco-mjx>=3.8.0",
+  "flax>=0.12.0",
+  "interpax>=0.3.12",
   "matplotlib",
   "tqdm",
 ]
@@ -36,6 +37,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
@@ -47,6 +49,3 @@ Paper = "https://arxiv.org/abs/2505.01059"
 [tool.setuptools.packages.find]
 include = ["mtp", "mtp.*"]
 exclude = []
-
-[tool.setuptools.package-data]
-"mtp" = ["models/**/*.xml"]

@@ -4,7 +4,7 @@
 [![Website](https://img.shields.io/badge/Website-tensor--sampling-yellow)](https://sites.google.com/view/tensor-sampling/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
-[![JAX](https://img.shields.io/badge/JAX-0.6+-green.svg)](https://jax.readthedocs.io/)
+[![JAX](https://img.shields.io/badge/JAX-0.8+-green.svg)](https://jax.readthedocs.io/)
 
 **Model Tensor Planning** is a sampling-based MPC framework that generates
 *globally diverse* trajectory candidates by sampling paths through a
@@ -20,6 +20,31 @@ spline. It runs entirely on GPU via JAX + MuJoCo MJX and plugs into
   <img src="demos/cube_mtp-akima.gif" width="32%" />
   <img src="demos/crane_mtp-bspline.gif" width="32%" />
 </p>
+
+---
+
+## Relationship to Hydrax
+
+MTP has been **upstreamed** into
+[hydrax](https://github.com/vincekurtz/hydrax) as
+[`hydrax.algs.MTP`](https://github.com/vincekurtz/hydrax/blob/main/hydrax/algs/mtp.py)
+(PRs [#74](https://github.com/vincekurtz/hydrax/pull/74),
+[#75](https://github.com/vincekurtz/hydrax/pull/75),
+[#76](https://github.com/vincekurtz/hydrax/pull/76)). If you only need MTP
+as one of many controllers, you can use it directly from hydrax:
+
+```python
+from hydrax.algs import MTP  # upstream copy
+```
+
+**This repository** (`anindex/mtp`) remains the **canonical reference
+implementation** with:
+- Extensive per-task tuning examples across 9 environments
+- Self-contained Akima and B-spline spline code for research purposes
+- The paper's official benchmark scripts and plotting utilities
+
+The two codebases are kept API-compatible. Use whichever fits your
+workflow.
 
 ---
 
@@ -46,7 +71,7 @@ get stuck behind the U-shaped wall; MTP routes around it.
 
 ## Install
 
-Requires Python >= 3.12 and a recent CUDA toolchain for GPU rollouts.
+Requires **Python >= 3.12** and **CUDA 13** for GPU rollouts.
 
 ```bash
 git clone https://github.com/anindex/mtp.git
@@ -55,8 +80,20 @@ uv venv --python 3.12 .venv && source .venv/bin/activate
 uv pip install -e .
 ```
 
-`pip install -e .` works equivalently. Hydrax is pinned to a known-good
-commit; bump it explicitly in [pyproject.toml](pyproject.toml).
+`pip install -e .` works equivalently. Hydrax is pinned to commit
+[`33ec819`](https://github.com/vincekurtz/hydrax/commit/33ec819)
+which includes the merged MTP PRs, spline bug fixes, MPPI-CMA, and
+MjWarp backend support. Bump it explicitly in
+[pyproject.toml](pyproject.toml).
+
+### Key dependencies
+
+| Package | Minimum | Notes |
+| --- | --- | --- |
+| `jax` | >= 0.8.0 | CUDA 13 required for GPU |
+| `mujoco` / `mujoco-mjx` | >= 3.8.0 | MJX physics backend |
+| `flax` | >= 0.12.0 | Immutable dataclasses |
+| `interpax` | >= 0.3.12 | Akima spline utilities (hydrax dep) |
 
 ## Quick start
 
@@ -70,12 +107,12 @@ task = Pendulum()
 ctrl = MTP(
     task,
     num_samples=128,
-    M=3, N=50,                 # 3-layer graph, 50 candidates per layer
-    beta=0.5,                  # 50 % tensor paths, 50 % local CEM
-    mtp_interpolation="akima", # "akima" | "bspline" | "linear"
+    m_pts=3, n_per_layer=50,      # 3-layer graph, 50 candidates per layer
+    beta=0.5,                     # 50 % tensor paths, 50 % local CEM
+    mtp_interpolation="akima",    # "akima" | "bspline" | "linear"
     plan_horizon=1.0,
     num_knots=10,
-    spline_type="zero",        # hydrax low-level control spline
+    spline_type="zero",           # hydrax low-level control spline
 )
 
 mj_model = task.mj_model
@@ -85,18 +122,21 @@ run_interactive(ctrl, mj_model, mj_data, frequency=25)
 
 ## Examples
 
-Each example accepts `mtp` / `ps` / `mppi` / `cem` as a positional argument:
+Each example accepts `mtp` / `ps` / `mppi` / `cem` as a positional argument.
+All examples also accept `--warp` for the experimental MjWarp backend
+(**note**: `--warp` must come *before* the algorithm subcommand):
 
 | Example | Highlights |
 | --- | --- |
-| [`navigation.py`](examples/navigation.py) | U-maze with a local minimum; MTP escapes, others don't |
+| [`navigation.py`](examples/navigation.py) | U-maze (BugTrap) with a local minimum; MTP escapes, others don't |
 | [`pendulum.py`](examples/pendulum.py) · [`double_cart_pole.py`](examples/double_cart_pole.py) · [`walker.py`](examples/walker.py) | Classic underactuated benchmarks |
 | [`pusht.py`](examples/pusht.py) · [`cube.py`](examples/cube.py) · [`crane.py`](examples/crane.py) | Contact-rich manipulation |
 | [`g1_standup.py`](examples/g1_standup.py) · [`g1_mocap.py`](examples/g1_mocap.py) | Unitree G1 humanoid |
 
 ```bash
 python examples/navigation.py mtp
-python examples/pusht.py    mppi   # baseline comparison
+python examples/pusht.py    mppi          # baseline comparison
+python examples/walker.py   --warp mtp    # experimental MjWarp backend
 ```
 
 Visualize the spline tensor structures with
@@ -106,16 +146,16 @@ Visualize the spline tensor structures with
 
 ### MTP-specific (see [`mtp/mtp.py`](mtp/mtp.py))
 
-| Symbol | Argument | Description | Typical |
+| Paper symbol | Argument | Description | Typical |
 | --- | --- | --- | --- |
-| `M` | `M` | Graph depth (waypoint layers) | 2-5 |
-| `N` | `N` | Graph width (candidates / layer) | 20-100 |
+| `M` | `m_pts` | Graph depth (waypoint layers) | 2-5 |
+| `N` | `n_per_layer` | Graph width (candidates / layer) | 20-100 |
 | `β` | `beta` | Tensor / CEM mix (1.0 = all tensor) | 0.1-1.0 |
 | `K` | `num_elites` | Elite count for the CEM update | 5-50 |
 | `σ_min`, `σ_max` | `sigma_min`, `sigma_max` | Variance clamp | 0.05-1.0 |
 | `α` | `alpha` | Variance smoothing (0 = full update) | 0.0-0.5 |
 | `λ` | `temperature` | Softmax temperature for elites | 0.01-1.0 |
-| - | `mtp_interpolation` | `"akima"` (local, no overshoot), `"bspline"` (globally smooth, requires `M >= degree + 1`), `"linear"` | - |
+| - | `mtp_interpolation` | `"akima"` (local, no overshoot), `"bspline"` (globally smooth, requires `m_pts >= degree + 1`), `"linear"` | - |
 | - | `degree` | B-spline degree (>= 2) | 2-4 |
 
 ### Hydrax control spline (inherited)
@@ -148,37 +188,42 @@ mtp/
 ├── splines/
 │   ├── akima.py          # Modified-Akima cubic, vectorized for JAX
 │   └── bsplines.py       # Cox-de Boor B-spline basis matrix
-├── tasks/
-│   └── navigation.py     # Vendored U-maze particle task (local-minimum demo)
-└── models/particle/      # MJCF assets shipped via package-data
+└── tasks/                # (empty - navigation moved upstream to hydrax)
 
 examples/   # one runnable script per task, all four algorithms
 scripts/    # plotting helpers
 demos/      # GIFs used in this README
 ```
 
+> **Note:** The U-maze navigation task (`NavigationParticle`) has been
+> upstreamed as [`hydrax.tasks.bugtrap.BugTrap`](https://github.com/vincekurtz/hydrax/blob/main/hydrax/tasks/bugtrap.py).
+> The example script [`examples/navigation.py`](examples/navigation.py) now
+> imports directly from hydrax.
+
 ## Citation
+
+If you find this repository useful, please consider citing:
 
 ```bibtex
 @article{le2025model,
-  title   = {Model Tensor Planning},
-  author  = {An Thai Le and Khai Nguyen and Minh Nhat Vu and Joao Carvalho and Jan Peters},
-  journal = {Transactions on Machine Learning Research},
-  issn    = {2835-8856},
-  year    = {2025},
-  url     = {https://openreview.net/forum?id=fk1ZZdXCE3}
+  title={Model Tensor Planning},
+  author={Le, An Thai and Nguyen, Khai and Vu, Minh Nhat and Carvalho, Joao and Peters, Jan},
+  journal={Transactions on Machine Learning Research},
+  issn={2835-8856},
+  year={2025},
+  url={https://openreview.net/forum?id=fk1ZZdXCE3}
 }
 
 @misc{kurtz2024hydrax,
-  title  = {Hydrax: Sampling-based model predictive control on GPU with JAX and MuJoCo MJX},
-  author = {Kurtz, Vince},
-  year   = {2024},
-  note   = {https://github.com/vincekurtz/hydrax}
+  title={Hydrax: Sampling-based model predictive control on GPU with JAX and MuJoCo MJX},
+  author={Kurtz, Vince},
+  year={2024},
+  note={https://github.com/vincekurtz/hydrax}
 }
 ```
 
 ## Acknowledgments
 
 Built on [Hydrax](https://github.com/vincekurtz/hydrax) and
-[MuJoCo MJX](https://github.com/google-deepmind/mujoco). Thanks to
-[Vince Kurtz](https://github.com/vincekurtz) for the upstream framework.
+[MuJoCo MJX](https://github.com/google-deepmind/mujoco).
+The author thanks [Vince Kurtz](https://github.com/vincekurtz) for the upstream framework!

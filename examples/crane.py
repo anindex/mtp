@@ -1,7 +1,7 @@
 """Interactive simulation of crane payload tracking.
 
 Sim/baseline settings mirror upstream hydrax
-(github.com/vincekurtz/hydrax @ a3976e0/examples/crane.py): freq=30 Hz,
+(github.com/vincekurtz/hydrax @ 33ec819/examples/crane.py): freq=30 Hz,
 plan_horizon=0.8, zero-order spline with num_knots=3, model perturbations
 (damping x0.1, payload mass+inertia x1.5), CVaR risk on PS. Upstream only
 ships PS; MPPI / CEM / MTP share the same per-step planner budget.
@@ -18,9 +18,13 @@ from hydrax.risk import ConditionalValueAtRisk
 from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.crane import Crane
 
-task = Crane()
-
 parser = argparse.ArgumentParser(description="Crane payload tracking task.")
+parser.add_argument(
+    "--warp",
+    action="store_true",
+    help="Whether to use the (experimental) MjWarp backend. (default: False)",
+    required=False,
+)
 subparsers = parser.add_subparsers(dest="algorithm", help="Sampling algorithm")
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
@@ -29,6 +33,8 @@ subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
 if args.algorithm is None:
     args.algorithm = "ps"
+
+task = Crane(impl="warp" if args.warp else "jax")
 
 # Shared planner budget (upstream crane.py)
 NUM_SAMPLES = 8
@@ -62,11 +68,8 @@ elif args.algorithm == "cem":
     )
 elif args.algorithm == "mtp":
     print("Running MTP")
-    # PS-style core (greedy) since the noise level is tiny (0.05) and the
-    # task is largely smooth; small tensor budget (beta=0.05) gives a
-    # cheap non-local exploration channel.
     ctrl = MTP(
-        task, num_samples=NUM_SAMPLES, M=3, N=8,
+        task, num_samples=NUM_SAMPLES, m_pts=3, n_per_layer=8,
         sigma_min=0.05, sigma_max=0.1, sigma_start=0.05,
         num_elites=1, temperature=1.0, beta=0.05, alpha=0.0,
         mtp_interpolation="bspline",

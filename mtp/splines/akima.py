@@ -43,6 +43,10 @@ def poly_akima(x: jax.Array, C: jax.Array) -> jax.Array:
     # cascade reads uninitialised entries and produces wildly wrong
     # boundary derivatives. Fall back to a linear segment with both
     # endpoint derivatives equal to the single segment slope.
+    #
+    # Note: ``slopes * dxr`` normalises the derivative into the unit
+    # parameter domain [0, 1] required by the Hermite polynomial form
+    # (dy/dx → dy/dt where t = (x - x_i) / dx).
     if n_seg == 1:
         dydx_l = slopes * dxr  # (1, D)
         dydx_r = slopes * dxr

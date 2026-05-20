@@ -1,7 +1,7 @@
 """Interactive simulation of the push-T task.
 
 Sim/baseline settings mirror upstream hydrax
-(github.com/vincekurtz/hydrax @ a3976e0/examples/pusht.py): freq=50 Hz,
+(github.com/vincekurtz/hydrax @ 33ec819/examples/pusht.py): freq=50 Hz,
 plan_horizon=0.5, zero-order spline with num_knots=6, fine-grained sim
 (timestep=0.001, iter=100, ls=50). Upstream only ships PS; MPPI/CEM/MTP
 share the same per-step planner budget.
@@ -17,9 +17,13 @@ from hydrax.algs import CEM, MPPI, PredictiveSampling
 from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.pusht import PushT
 
-task = PushT()
-
 parser = argparse.ArgumentParser(description="Push-T task.")
+parser.add_argument(
+    "--warp",
+    action="store_true",
+    help="Whether to use the (experimental) MjWarp backend. (default: False)",
+    required=False,
+)
 subparsers = parser.add_subparsers(dest="algorithm", help="Sampling algorithm")
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
@@ -28,6 +32,8 @@ subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
 if args.algorithm is None:
     args.algorithm = "ps"
+
+task = PushT(impl="warp" if args.warp else "jax")
 
 # Shared planner budget (upstream pusht.py)
 NUM_SAMPLES = 128
@@ -63,9 +69,9 @@ elif args.algorithm == "mtp":
     # sigma band (0.10-0.4) keeps push contacts informative; small tensor
     # budget (beta=0.05) handles non-local re-grasps.
     ctrl = MTP(
-        # M=3 + akima: aggressive curvature recovers the block from a
+        # m_pts=3 + akima: aggressive curvature recovers the block from a
         # far IC where bspline / PS / MPPI under-shoot.
-        task, num_samples=NUM_SAMPLES, M=3, N=8,
+        task, num_samples=NUM_SAMPLES, m_pts=4, n_per_layer=10,
         sigma_min=0.10, sigma_max=0.4, sigma_start=0.4,
         num_elites=20, temperature=0.1, beta=0.05, alpha=0.0,
         mtp_interpolation="akima", num_randomizations=NUM_RAND,

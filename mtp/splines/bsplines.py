@@ -8,7 +8,9 @@ import jax
 import jax.numpy as jnp
 
 
-def compute_b_spline_matrix(x: jax.Array, degree: int, num_points: int) -> jax.Array:
+def compute_b_spline_matrix(
+    x: jax.Array, degree: int, num_points: int
+) -> jax.Array:
     """Compute the B-spline basis matrix for a given degree and knot vector.
 
     Constructs the basis function matrix using the Cox-de Boor recursion,
@@ -38,22 +40,30 @@ def compute_b_spline_matrix(x: jax.Array, degree: int, num_points: int) -> jax.A
     t_values = jnp.linspace(t_start, t_end - eps, num_points)
 
     b = jnp.where(
-        (x[:-1] <= t_values[:, None]) & (t_values[:, None] < x[1:]), 1.0, 0.0
+        (x[:-1] <= t_values[:, None]) & (t_values[:, None] < x[1:]),
+        1.0,
+        0.0,
     )
 
     for d in range(1, degree + 1):
         left_d1, left_d2 = x[d:-1], x[:-d - 1]
+        denom_left = jnp.where(left_d1 > left_d2, left_d1 - left_d2, 1.0)
         b_left = jnp.where(
             left_d1 > left_d2,
-            ((t_values[:, None] - left_d2) / jnp.where(left_d1 > left_d2, left_d1 - left_d2, 1.0)) * b[:, :-1],
+            ((t_values[:, None] - left_d2) / denom_left) * b[:, :-1],
             0.0,
         )
+
         right_d1, right_d2 = x[d + 1:], x[1:-d]
+        denom_right = jnp.where(
+            right_d1 > right_d2, right_d1 - right_d2, 1.0
+        )
         b_right = jnp.where(
             right_d1 > right_d2,
-            ((right_d1 - t_values[:, None]) / jnp.where(right_d1 > right_d2, right_d1 - right_d2, 1.0)) * b[:, 1:],
+            ((right_d1 - t_values[:, None]) / denom_right) * b[:, 1:],
             0.0,
         )
+
         b = b_left + b_right
 
     return b

@@ -7,6 +7,6 @@ graphs with spline interpolation.
 See: https://arxiv.org/abs/2505.01059
 """
 
-from mtp.mtp import MTP, MTPParams
+from mtp.mtp import MTP, MTPInterpolationType, MTPParams
 
-__all__ = ["MTP", "MTPParams"]
+__all__ = ["MTP", "MTPParams", "MTPInterpolationType"]

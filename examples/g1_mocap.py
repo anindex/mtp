@@ -1,7 +1,7 @@
 """Interactive simulation of humanoid (G1) motion-capture tracking.
 
 Sim/baseline settings mirror upstream hydrax
-(github.com/vincekurtz/hydrax @ a3976e0/examples/humanoid_mocap.py):
+(github.com/vincekurtz/hydrax @ 33ec819/examples/humanoid_mocap.py):
 freq=50 Hz, plan_horizon=0.8 s, zero-order spline with num_knots=4,
 high-fidelity contact (timestep=0.01, iter=10, ls=50, override solimp),
 IC = first reference frame, initial knots seeded from the reference
@@ -21,6 +21,12 @@ from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.humanoid_mocap import HumanoidMocap, HumanoidMocapOptions
 
 parser = argparse.ArgumentParser(description="Humanoid (G1) mocap tracking task.")
+parser.add_argument(
+    "--warp",
+    action="store_true",
+    help="Whether to use the (experimental) MjWarp backend. (default: False)",
+    required=False,
+)
 parser.add_argument(
     "--reference_filename",
     type=str,
@@ -43,6 +49,7 @@ if args.algorithm is None:
 task = HumanoidMocap(
     reference_filename=args.reference_filename,
     options=HumanoidMocapOptions(),
+    impl="warp" if args.warp else "jax",
 )
 
 # Shared planner budget (upstream humanoid_mocap.py uses CEM)
@@ -80,16 +87,17 @@ elif args.algorithm == "cem":
 elif args.algorithm == "mtp":
     print("Running MTP")
     # Tuning notes (28-DoF humanoid mocap tracking):
-    #   * N<=8 keeps the JAX/XLA kernel within ptxas register budget.
+    #   * n_per_layer<=8 keeps the JAX/XLA kernel within ptxas register
+    #     budget.
     #   * Tight CEM-style core (E=10, sharp t=0.03) mirrors upstream CEM
     #     which dominates this task; sigma decays from 0.2 -> 0.05 like
     #     upstream's CEM (sigma_start, sigma_min).
     #   * beta=0.05 supplies a small tensor-graph budget for non-local
     #     posture correction without exploding the rollout count.
     ctrl = MTP(
-        # bspline + M=3: smoother per-knot blending tracks the mocap
+        # bspline + m_pts=3: smoother per-knot blending tracks the mocap
         # reference more conservatively than akima on this env.
-        task, num_samples=1024, M=3, N=8,
+        task, num_samples=1024, m_pts=3, n_per_layer=8,
         sigma_min=0.05, sigma_max=0.2, sigma_start=0.2,
         num_elites=10, temperature=0.03, beta=0.05, alpha=0.0,
         mtp_interpolation="bspline", num_randomizations=1,

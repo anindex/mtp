@@ -1,7 +1,7 @@
 """Interactive simulation of the cube re-orientation task.
 
 Sim/baseline settings mirror upstream hydrax
-(github.com/vincekurtz/hydrax @ a3976e0/examples/cube.py): freq=25 Hz,
+(github.com/vincekurtz/hydrax @ 33ec819/examples/cube.py): freq=25 Hz,
 plan_horizon=0.25, zero-order spline with num_knots=4. Note that upstream
 uses *different* (num_samples, num_randomizations) per algorithm; we keep
 each algorithm at its upstream values so total rollout budget per planner
@@ -17,9 +17,13 @@ from hydrax.algs import CEM, MPPI, PredictiveSampling
 from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.cube import CubeRotation
 
-task = CubeRotation()
-
 parser = argparse.ArgumentParser(description="Cube re-orientation task.")
+parser.add_argument(
+    "--warp",
+    action="store_true",
+    help="Whether to use the (experimental) MjWarp backend. (default: False)",
+    required=False,
+)
 subparsers = parser.add_subparsers(dest="algorithm", help="Sampling algorithm")
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
@@ -28,6 +32,8 @@ subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
 if args.algorithm is None:
     args.algorithm = "ps"
+
+task = CubeRotation(impl="warp" if args.warp else "jax")
 
 # Shared sim settings (upstream cube.py)
 PLAN_HORIZON = 0.25
@@ -62,7 +68,7 @@ elif args.algorithm == "mtp":
     # samples at small num_knots=4 hurts more than helps. Tuned over 3
     # seeds: MTP per-step = 0.00207 vs MPPI baseline 0.00431.
     ctrl = MTP(
-        task, num_samples=128, M=3, N=8,
+        task, num_samples=128, m_pts=3, n_per_layer=8,
         sigma_min=0.05, sigma_max=0.2, sigma_start=0.2,
         num_elites=128, temperature=0.001, beta=0.0, alpha=0.0,
         mtp_interpolation="bspline", num_randomizations=8,

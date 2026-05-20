@@ -1,7 +1,7 @@
 """Interactive simulation of pendulum swing-up.
 
 Sim/baseline settings mirror upstream hydrax
-(github.com/vincekurtz/hydrax @ a3976e0/examples/pendulum.py):
+(github.com/vincekurtz/hydrax @ 33ec819/examples/pendulum.py):
 freq=50 Hz, plan_horizon=1.0 s, zero-order spline with num_knots=11.
 """
 
@@ -15,9 +15,13 @@ from hydrax.algs import CEM, MPPI, PredictiveSampling
 from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.pendulum import Pendulum
 
-task = Pendulum()
-
 parser = argparse.ArgumentParser(description="Pendulum swing-up task.")
+parser.add_argument(
+    "--warp",
+    action="store_true",
+    help="Whether to use the (experimental) MjWarp backend. (default: False)",
+    required=False,
+)
 subparsers = parser.add_subparsers(dest="algorithm", help="Sampling algorithm")
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
@@ -26,6 +30,8 @@ subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
 if args.algorithm is None:
     args.algorithm = "ps"
+
+task = Pendulum(impl="warp" if args.warp else "jax")
 
 # Shared planner budget (upstream pendulum.py)
 NUM_SAMPLES = 32
@@ -58,7 +64,7 @@ elif args.algorithm == "mtp":
     # / num_knots=11. Tight sigma band keeps the elites informative around
     # upright; small tensor budget (beta=0.10) handles non-local recoveries.
     ctrl = MTP(
-        task, num_samples=NUM_SAMPLES, M=2, N=8,
+        task, num_samples=NUM_SAMPLES, m_pts=2, n_per_layer=8,
         sigma_min=0.10, sigma_max=0.5, sigma_start=0.5,
         num_elites=10, temperature=0.03, beta=0.10, alpha=0.0,
         # Akima beats bspline by ~1% on stationary swing-up tracking.

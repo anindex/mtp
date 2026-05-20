@@ -6,9 +6,17 @@ randomized multipartite graphs, with spline-based control interpolation.
 
 This module is designed to work with upstream hydrax (>=0.0.2) and its
 spline-native API.
+
+Reference
+---------
+Le et al., "Model Tensor Planning", TMLR 2025.
+https://arxiv.org/abs/2505.01059
+
+The parameters ``m_pts`` and ``n_per_layer`` correspond to *M* and *N*
+in the paper (Section 3, Algorithm 1).
 """
 
-from typing import Literal, Tuple
+from typing import Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -20,6 +28,8 @@ from hydrax.task_base import Task
 
 from mtp.splines.akima import poly_akima, poly_interpolation
 from mtp.splines.bsplines import compute_b_spline_matrix
+
+MTPInterpolationType = Literal["akima", "bspline", "linear"]
 
 
 @dataclass
@@ -55,11 +65,20 @@ class MTP(SamplingBasedController):
     The β parameter controls the mixing ratio: β=1.0 means all tensor
     samples, β=0.0 means all local CEM samples.
 
+    Notation (paper ↔ code):
+        M  ↔  ``m_pts``            - graph depth (waypoint layers)
+        N  ↔  ``n_per_layer``      - graph width (candidates per layer)
+        β  ↔  ``beta``             - tensor / CEM mix ratio
+        K  ↔  ``num_elites``       - elite count
+        α  ↔  ``alpha``            - CEM variance smoothing
+        λ  ↔  ``temperature``      - softmax temperature
+
     Args:
         task: The dynamics and cost for the system to control.
         num_samples: Total number of control trajectories to evaluate.
-        M: Number of control waypoints (graph depth / layers).
-        N: Number of candidates per waypoint (graph width).
+        m_pts: Number of control waypoints / graph depth (*M* in the paper).
+        n_per_layer: Number of candidates per waypoint / graph width
+            (*N* in the paper).
         degree: B-spline degree (must be >= 2). Only used when
                 mtp_interpolation='bspline'.
         num_elites: Number of elite samples for CEM update.
@@ -85,8 +104,8 @@ class MTP(SamplingBasedController):
         self,
         task: Task,
         num_samples: int,
-        M: int = 3,
-        N: int = 50,
+        m_pts: int = 3,
+        n_per_layer: int = 50,
         degree: int = 2,
         num_elites: int = 5,
         sigma_start: float = 0.5,
@@ -96,22 +115,23 @@ class MTP(SamplingBasedController):
         num_randomizations: int = 1,
         beta: float = 0.1,
         alpha: float = 0.5,
-        mtp_interpolation: str = "akima",
-        risk_strategy: RiskStrategy = None,
+        mtp_interpolation: MTPInterpolationType = "akima",
+        risk_strategy: Optional[RiskStrategy] = None,
         seed: int = 0,
         plan_horizon: float = 1.0,
         spline_type: Literal["zero", "linear", "cubic"] = "zero",
         num_knots: int = 4,
         iterations: int = 1,
-    ):
+    ) -> None:
         assert degree >= 2, "B-spline degree must be at least 2."
         if mtp_interpolation == "bspline":
-            assert M >= degree + 1, (
-                f"B-spline interpolation requires M >= degree + 1 "
-                f"(got M={M}, degree={degree}). With M < degree+1 the valid "
-                f"B-spline parameter domain collapses to a point and the "
-                f"tensor branch produces flat (constant) control samples. "
-                f"Use 'akima' or 'linear' for small M, or increase M."
+            assert m_pts >= degree + 1, (
+                f"B-spline interpolation requires m_pts >= degree + 1 "
+                f"(got m_pts={m_pts}, degree={degree}). With m_pts < degree+1 "
+                f"the valid B-spline parameter domain collapses to a point "
+                f"and the tensor branch produces flat (constant) control "
+                f"samples. Use 'akima' or 'linear' for small m_pts, or "
+                f"increase m_pts."
             )
         super().__init__(
             task,
@@ -124,8 +144,8 @@ class MTP(SamplingBasedController):
             iterations=iterations,
         )
         self.degree = degree
-        self.N = N
-        self.M = M
+        self.n_per_layer = n_per_layer
+        self.m_pts = m_pts
         self.beta = beta
         self.num_samples = num_samples
         self.num_elites = num_elites
@@ -137,29 +157,39 @@ class MTP(SamplingBasedController):
         self.alpha = alpha
 
         # Precompute spline structures
-        self.aknots = jnp.linspace(1, self.M, self.M)
-        self.bknots = jnp.arange(self.M + self.degree + 1)
+        self.aknots = jnp.linspace(1, self.m_pts, self.m_pts)
+        self.bknots = jnp.arange(self.m_pts + self.degree + 1)
         self.bmat = compute_b_spline_matrix(
             self.bknots, self.degree, self.num_knots
         )
 
         # Precompute linear-interpolation matrix so the linear branch is a
-        # single einsum. For each query point t in [0, M-1] expressed as
-        # t = i + s with i ∈ {0, …, M-2} and s ∈ [0, 1), the value is
+        # single einsum. For each query point t in [0, m_pts-1] expressed as
+        # t = i + s with i ∈ {0, …, m_pts-2} and s ∈ [0, 1), the value is
         # (1 - s) * paths[i] + s * paths[i+1]. We bake that into a fixed
-        # (num_interp*(M-1), M) matrix.
-        if self.M > 1:
-            n_interp_lin = -(-self.num_knots // (self.M - 1))  # ceil-div
-            n_total = n_interp_lin * (self.M - 1)
-            t_lin = jnp.linspace(0.0, self.M - 1, n_total + 1)[:-1]
-            i_idx = jnp.clip(jnp.floor(t_lin).astype(jnp.int32), 0, self.M - 2)
-            s = t_lin - i_idx
-            cols = jnp.arange(self.M)
-            # (n_total, M): row k has weight (1-s_k) at i_k and s_k at i_k+1
-            self.linmat = (
-                jnp.where(cols[None, :] == i_idx[:, None], 1.0 - s[:, None], 0.0)
-                + jnp.where(cols[None, :] == i_idx[:, None] + 1, s[:, None], 0.0)
+        # (num_interp*(m_pts-1), m_pts) matrix and pre-truncate to num_knots.
+        if self.m_pts > 1:
+            n_interp_lin = -(-self.num_knots // (self.m_pts - 1))  # ceil-div
+            n_total = n_interp_lin * (self.m_pts - 1)
+            t_lin = jnp.linspace(0.0, self.m_pts - 1, n_total + 1)[:-1]
+            i_idx = jnp.clip(
+                jnp.floor(t_lin).astype(jnp.int32), 0, self.m_pts - 2
             )
+            s = t_lin - i_idx
+            cols = jnp.arange(self.m_pts)
+            # (n_total, m_pts): row k has weight (1-s_k) at i_k and s_k at
+            # i_k+1
+            linmat_full = (
+                jnp.where(
+                    cols[None, :] == i_idx[:, None], 1.0 - s[:, None], 0.0
+                )
+                + jnp.where(
+                    cols[None, :] == i_idx[:, None] + 1, s[:, None], 0.0
+                )
+            )
+            # Pre-truncate to num_knots so the JIT compiler sees a static
+            # shape and we avoid a dynamic slice on every sample_knots call.
+            self.linmat = linmat_full[: self.num_knots]
         else:
             self.linmat = jnp.ones((self.num_knots, 1))
 
@@ -230,41 +260,49 @@ class MTP(SamplingBasedController):
             k = 3.0
             mean_lo = jnp.min(params.mean, axis=0) - k * self.sigma_max
             mean_hi = jnp.max(params.mean, axis=0) + k * self.sigma_max
-            u_min = jnp.where(jnp.isfinite(self.task.u_min), self.task.u_min, mean_lo)
-            u_max = jnp.where(jnp.isfinite(self.task.u_max), self.task.u_max, mean_hi)
+            u_min = jnp.where(
+                jnp.isfinite(self.task.u_min), self.task.u_min, mean_lo
+            )
+            u_max = jnp.where(
+                jnp.isfinite(self.task.u_max), self.task.u_max, mean_hi
+            )
             control_points = jax.random.uniform(
                 cp_rng,
-                (self.M, self.N, nu),
+                (self.m_pts, self.n_per_layer, nu),
                 minval=u_min,
                 maxval=u_max,
             )
 
             # Sample random paths through the M-partite graph.
             layer_indices = jax.random.randint(
-                idx_rng, (mtp_samples, self.M), 0, self.N
+                idx_rng, (mtp_samples, self.m_pts), 0, self.n_per_layer
             )
 
             # Direct broadcast gather avoids vmap closure overhead.
             paths = control_points[
-                jnp.arange(self.M)[None, :], layer_indices
-            ]  # (mtp_samples, M, nu)
+                jnp.arange(self.m_pts)[None, :], layer_indices
+            ]  # (mtp_samples, m_pts, nu)
 
             # Interpolate paths to num_knots points. When num_knots is not
-            # divisible by (M-1) we evaluate the spline on
-            # ceil(num_knots/(M-1)) points-per-segment and then truncate to
-            # exactly num_knots samples; padding with a flat plateau
+            # divisible by (m_pts-1) we evaluate the spline on
+            # ceil(num_knots/(m_pts-1)) points-per-segment and then truncate
+            # to exactly num_knots samples; padding with a flat plateau
             # would inject a step-discontinuity and bias the elite
             # distribution towards trailing-zero controls.
-            if self.M > 1:
-                num_interp = -(-self.num_knots // (self.M - 1))  # ceil-div
+            if self.m_pts > 1:
+                num_interp = -(
+                    -self.num_knots // (self.m_pts - 1)
+                )  # ceil-div
             else:
                 num_interp = self.num_knots
 
             if self.mtp_interpolation == "akima":
                 A = jax.vmap(poly_akima, in_axes=(None, 0))(
                     self.aknots, paths
-                )  # (mtp_samples, M-1, 4, nu)
-                mtp_knots = poly_interpolation(A, num_interp)[:, : self.num_knots]
+                )  # (mtp_samples, m_pts-1, 4, nu)
+                mtp_knots = poly_interpolation(A, num_interp)[
+                    :, : self.num_knots
+                ]
 
             elif self.mtp_interpolation == "bspline":
                 mtp_knots = jnp.einsum("bmd,hm->bhd", paths, self.bmat)
@@ -274,7 +312,7 @@ class MTP(SamplingBasedController):
                 # Vandermonde-style matmul used by the Akima branch.
                 mtp_knots = jnp.einsum(
                     "bmd,hm->bhd", paths, self.linmat
-                )[:, : self.num_knots]
+                )
 
             else:
                 raise ValueError(
@@ -332,7 +370,9 @@ class MTP(SamplingBasedController):
         # safe range when `temperature` is small (cf. MPPI-generic, Eq. 8).
         baseline = jnp.min(elite_costs)
         weights = jnp.nan_to_num(
-            jax.nn.softmax(-(elite_costs - baseline) / self.temperature, axis=0)
+            jax.nn.softmax(
+                -(elite_costs - baseline) / self.temperature, axis=0
+            )
         )
 
         # Weighted mean and (Bessel-corrected) std. The plain weighted
@@ -345,15 +385,15 @@ class MTP(SamplingBasedController):
         var = jnp.sum(
             weights[:, None, None] * (elite_knots - mean) ** 2, axis=0
         )
-        bessel = 1.0 / jnp.maximum(1.0 - jnp.sum(weights ** 2), 1e-6)
+        bessel = 1.0 / jnp.maximum(1.0 - jnp.sum(weights**2), 1e-6)
         cov = jnp.sqrt(var * bessel)
         cov = jnp.clip(cov, self.sigma_min, self.sigma_max)
 
         # Momentum smoothing on μ (arithmetic) and σ² (convex blend on the
         # variance - standard CMA/CEM convention). α=0: full update.
         mean = mean + self.alpha * (params.mean - mean)
-        new_var = cov ** 2
-        old_var = params.cov ** 2
+        new_var = cov**2
+        old_var = params.cov**2
         cov = jnp.sqrt(new_var + self.alpha * (old_var - new_var))
 
         # Best knots for warm-starting next iteration

@@ -1,7 +1,7 @@
 """Interactive simulation of the double cart-pole task.
 
 Sim/baseline settings mirror upstream hydrax
-(github.com/vincekurtz/hydrax @ a3976e0/examples/double_cart_pole.py):
+(github.com/vincekurtz/hydrax @ 33ec819/examples/double_cart_pole.py):
 freq=50 Hz, plan_horizon=1.0 s, **cubic** spline with num_knots=4.
 Upstream only ships PS; MPPI / CEM / MTP share the same shared budget.
 """
@@ -15,9 +15,13 @@ from hydrax.algs import CEM, MPPI, PredictiveSampling
 from hydrax.simulation.deterministic import run_interactive
 from hydrax.tasks.double_cart_pole import DoubleCartPole
 
-task = DoubleCartPole()
-
 parser = argparse.ArgumentParser(description="Double cart-pole task.")
+parser.add_argument(
+    "--warp",
+    action="store_true",
+    help="Whether to use the (experimental) MjWarp backend. (default: False)",
+    required=False,
+)
 subparsers = parser.add_subparsers(dest="algorithm", help="Sampling algorithm")
 subparsers.add_parser("ps", help="Predictive Sampling")
 subparsers.add_parser("mppi", help="Model Predictive Path Integral Control")
@@ -26,6 +30,8 @@ subparsers.add_parser("mtp", help="Model Tensor Planning")
 args = parser.parse_args()
 if args.algorithm is None:
     args.algorithm = "ps"
+
+task = DoubleCartPole(impl="warp" if args.warp else "jax")
 
 # Shared planner budget (upstream double_cart_pole.py)
 NUM_SAMPLES = 1024
@@ -55,10 +61,11 @@ elif args.algorithm == "cem":
 elif args.algorithm == "mtp":
     print("Running MTP")
     # PS-style core (greedy, num_elites=1, sharp t=1.0) at the upstream
-    # cubic/4-knot setting. Small N keeps the cubic interpolation cheap;
-    # beta=0.05 supplies a small tensor-graph budget for non-local jumps.
+    # cubic/4-knot setting. Small n_per_layer keeps the cubic interpolation
+    # cheap; beta=0.05 supplies a small tensor-graph budget for non-local
+    # jumps.
     ctrl = MTP(
-        task, num_samples=NUM_SAMPLES, M=3, N=8,
+        task, num_samples=NUM_SAMPLES, m_pts=3, n_per_layer=8,
         sigma_min=0.15, sigma_max=0.5, sigma_start=0.5,
         num_elites=1, temperature=1.0, beta=0.05, alpha=0.0,
         mtp_interpolation="bspline",
