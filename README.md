@@ -1,3 +1,5 @@
+
+
 # Model Tensor Planning (MTP)
 
 [![arXiv](https://img.shields.io/badge/arXiv-2505.01059-b31b1b.svg)](https://arxiv.org/abs/2505.01059)
@@ -71,7 +73,7 @@ get stuck behind the U-shaped wall; MTP routes around it.
 
 ## Install
 
-Requires **Python >= 3.12** and **CUDA 13** for GPU rollouts.
+Requires **Python >= 3.12** and **CUDA 12** for GPU rollouts.
 
 ```bash
 git clone https://github.com/anindex/mtp.git
@@ -90,7 +92,7 @@ MjWarp backend support. Bump it explicitly in
 
 | Package | Minimum | Notes |
 | --- | --- | --- |
-| `jax` | >= 0.8.0 | CUDA 13 required for GPU |
+| `jax` | >= 0.8.0 | CUDA 12 required for GPU |
 | `mujoco` / `mujoco-mjx` | >= 3.8.0 | MJX physics backend |
 | `flax` | >= 0.12.0 | Immutable dataclasses |
 | `interpax` | >= 0.3.12 | Akima spline utilities (hydrax dep) |
